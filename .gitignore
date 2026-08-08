@@ -1,0 +1,36 @@
+# Gradle and Android build output
+.gradle/
+.kotlin/
+**/build/
+outputs/
+
+# Local SDK and machine-specific configuration
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Native build output
+.externalNativeBuild/
+.cxx/
+
+# Generated packages and test artifacts
+*.apk
+*.aab
+*.apks
+*.hprof
+captures/
+
+# Device screenshots captured during local acceptance testing
+device-*.png
+permissioncontroller.apk
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+
+# Editor / tooling files
+.vscode/

@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">DualSimDialer</string>
+    <string name="setup_title">Set up your phone</string>
+    <string name="setup_body">DualSimDialer needs to be your default Phone app to route calls and present incoming calls safely.</string>
+    <string name="become_default">Make default Phone app</string>
+    <string name="grant_permissions">Continue with permissions</string>
+</resources>
