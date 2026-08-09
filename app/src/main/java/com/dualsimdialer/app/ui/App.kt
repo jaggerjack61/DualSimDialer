@@ -74,6 +74,7 @@ import com.dualsimdialer.app.model.ContactSummary
 import com.dualsimdialer.app.model.PhoneAccountKey
 import com.dualsimdialer.app.model.SimProfile
 import com.dualsimdialer.app.util.ColorUtils
+import com.dualsimdialer.app.util.PhoneNumberUtils
 import kotlinx.coroutines.launch
 
 private enum class AppTab(val label: String) {
@@ -226,6 +227,9 @@ private fun MainShell(
     val contacts by produceState<List<ContactSummary>>(emptyList(), application, contactQuery, permissionsVersion) {
         application.container.contactsRepository.observeContacts(contactQuery).collect { value = it }
     }
+    val allContacts by produceState<List<ContactSummary>>(emptyList(), application, permissionsVersion) {
+        application.container.contactsRepository.observeContacts().collect { value = it }
+    }
     val suggestions by produceState<List<ContactSummary>>(emptyList(), application, dialedNumber, permissionsVersion) {
         if (dialedNumber.isBlank()) value = emptyList()
         else application.container.contactsRepository.loadContacts(dialedNumber).let { value = it.take(2) }
@@ -238,6 +242,18 @@ private fun MainShell(
         context,
         Manifest.permission.READ_CALL_LOG,
     ) == PackageManager.PERMISSION_GRANTED
+    val existingContactNumbers = remember(allContacts) {
+        buildSet {
+            allContacts.forEach { contact ->
+                contact.phoneNumbers.forEach { phone ->
+                    PhoneNumberUtils.normalize(phone.number)?.let(::add)
+                    PhoneNumberUtils.digitsOnly(phone.number)
+                        .takeIf { it.isNotEmpty() }
+                        ?.let(::add)
+                }
+            }
+        }
+    }
 
     BackHandler(enabled = showSettings || showContactForm || selectedContact != null) {
         when {
@@ -341,6 +357,7 @@ private fun MainShell(
                 tab == AppTab.Logs -> LogsScreen(
                     logs = logs,
                     profiles = profiles,
+                    existingContactNumbers = existingContactNumbers,
                     query = logQuery,
                     onQueryChanged = { logQuery = it },
                     permissionMissing = !hasCallLogPermission,
@@ -399,21 +416,38 @@ private fun handleCall(
 }
 
 @Composable
-fun SimBadge(profile: SimProfile?, unavailable: Boolean = false) {
+fun SimBadge(profile: SimProfile?, unavailable: Boolean = false, compact: Boolean = false) {
     val color = profile?.let { Color(it.colorArgb) } ?: MaterialTheme.colorScheme.outline
     val label = when {
         unavailable -> "Unavailable"
         profile != null -> profile.displayName
         else -> "Other provider"
     }
-    AssistChip(
-        onClick = {},
-        enabled = false,
-        label = { Text(label) },
-        leadingIcon = {
-            Surface(Modifier.size(12.dp), shape = CircleShape, color = color) {}
-        },
-    )
+    if (compact) {
+        Surface(
+            modifier = Modifier.height(20.dp),
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Surface(Modifier.size(8.dp), shape = CircleShape, color = color) {}
+                Spacer(Modifier.width(4.dp))
+                Text(label, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    } else {
+        AssistChip(
+            onClick = {},
+            enabled = false,
+            label = { Text(label) },
+            leadingIcon = {
+                Surface(Modifier.size(12.dp), shape = CircleShape, color = color) {}
+            },
+        )
+    }
 }
 
 @Composable

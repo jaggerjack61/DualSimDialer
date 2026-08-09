@@ -271,6 +271,7 @@ fun SimCallButton(
 fun LogsScreen(
     logs: List<CallLogItem>,
     profiles: List<SimProfile>,
+    existingContactNumbers: Set<String>,
     query: String,
     onQueryChanged: (String) -> Unit,
     permissionMissing: Boolean,
@@ -300,7 +301,13 @@ fun LogsScreen(
             item { EmptyState("No calls yet", "Call history is read live from Android and is never copied into app storage.") }
         } else {
             items(logs, key = { it.id }) { item ->
-                CallLogCard(item, profiles, onSaveContact, onRedial)
+                CallLogCard(
+                    item = item,
+                    profiles = profiles,
+                    isExistingContact = isExistingContact(item, existingContactNumbers),
+                    onSaveContact = onSaveContact,
+                    onRedial = onRedial,
+                )
             }
         }
     }
@@ -310,12 +317,18 @@ fun LogsScreen(
 private fun CallLogCard(
     item: CallLogItem,
     profiles: List<SimProfile>,
+    isExistingContact: Boolean,
     onSaveContact: (String) -> Unit,
     onRedial: (CallLogItem) -> Unit,
 ) {
     val exact = profiles.firstOrNull { it.key == item.accountKey }
     Card {
-        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.Top) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Surface(Modifier.size(42.dp), shape = CircleShape, color = when (item.type) {
                 com.dualsimdialer.app.model.CallType.Missed -> MaterialTheme.colorScheme.errorContainer
                 else -> MaterialTheme.colorScheme.primaryContainer
@@ -325,28 +338,60 @@ private fun CallLogCard(
                 }
             }
             Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(item.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Column(
+                Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        item.title,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    SimBadge(
+                        exact,
+                        unavailable = item.accountKey != null && exact == null,
+                        compact = true,
+                    )
+                }
                 Text(
                     "${item.type.label()} · ${formatCallTime(item.timestamp)} · ${formatDuration(item.durationSeconds)}",
+                    modifier = Modifier.fillMaxWidth(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                SimBadge(exact, unavailable = item.accountKey != null && exact == null)
             }
-            Column(horizontalAlignment = Alignment.End) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(
                     onClick = { if (item.number != null) onRedial(item) },
                     enabled = item.number != null,
                     modifier = Modifier.semantics { contentDescription = "Call ${item.title}" },
                 ) { Icon(Icons.Default.Call, contentDescription = null) }
-                if (item.number != null) IconButton(
+                if (item.number != null && !isExistingContact) IconButton(
                     onClick = { onSaveContact(item.number) },
                     modifier = Modifier.semantics { contentDescription = "Save ${item.title} as contact" },
                 ) { Icon(Icons.Default.PersonAdd, contentDescription = null) }
             }
         }
     }
+}
+
+private fun isExistingContact(item: CallLogItem, contactNumbers: Set<String>): Boolean {
+    if (!item.displayName.isNullOrBlank()) return true
+    val number = item.number ?: return false
+    val normalized = PhoneNumberUtils.normalize(number)
+    if (normalized != null && normalized in contactNumbers) return true
+    val digits = PhoneNumberUtils.digitsOnly(number)
+    return digits.isNotEmpty() && digits in contactNumbers
 }
 
 private fun callIcon(item: CallLogItem) = when (item.type) {
